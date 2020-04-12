@@ -1,9 +1,7 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
+import { isUri } from 'valid-url';
 import {filterImageFromURL, deleteLocalFiles} from './util/util';
-import { config } from './config/config';
-
-import Jimp = require('jimp');
 
 (async () => {
 
@@ -16,28 +14,17 @@ import Jimp = require('jimp');
   // Use the body parser middleware for post requests
   app.use(bodyParser.json());
 
-  const cfg = config;
+  app.get("/filteredimage", async (req: Request, res: Response) => {
+    const { image_url: imageUrl } = req.query;
+    if (!imageUrl || !isUri(imageUrl)) {
+      return res.status(400).send({ auth: false, message: 'Image url is missing or malformed' });
+    }
+
+    const filteredPath = await filterImageFromURL(imageUrl);
+
+    res.sendFile(filteredPath, {}, () => deleteLocalFiles([filteredPath]));
+  });
   
-  // Image filtering Endpoint
-  // Returns a filtered image to the user
-  app.get( "/filteredimage", async ( req, res ) => {
-    let { image_url } = req.query;
-
-    let apiKey = req.header("X-API-Key");
-
-    if(!apiKey || apiKey != cfg.api_key ){
-      return res.status(401).send({ auth: false, message: 'Invalid api key.' });
-    }
-
-    if (!image_url) {
-      return res.status(422).send({ auth: true, message: 'image_url is required.' });
-    }
-
-    let filteredPath = await filterImageFromURL(image_url);
-    res.status(200).sendFile(filteredPath, () => { deleteLocalFiles([filteredPath]); });
-  } );
-
-
   // Root Endpoint
   // Displays a simple message to the user
   app.get( "/", async ( req, res ) => {
